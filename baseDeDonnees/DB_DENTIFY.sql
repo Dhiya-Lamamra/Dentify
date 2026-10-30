@@ -32,15 +32,15 @@ DROP TABLE IF EXISTS `Utilisateur`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `Utilisateur` (
   `id_utilisateur` int NOT NULL AUTO_INCREMENT,
-  `nom` varchar(25) NOT NULL,
-  `prenom` varchar(25) NOT NULL,
+  `nom` varchar(100) NOT NULL,
+  `prenom` varchar(100) NOT NULL,
   `telephone` varchar(20) DEFAULT NULL,
   `adresse` varchar(50) DEFAULT NULL,
   `ville` varchar(50) DEFAULT NULL,
   `province` varchar(25) DEFAULT NULL,
   `code_postal` varchar(10) DEFAULT NULL,
   `courriel` varchar(50) NOT NULL,
-  `mot_de_passe` varchar(25) NOT NULL,
+  `mot_de_passe` varchar(255) NOT NULL,
   `type_utilisateur` varchar(25) DEFAULT NULL,
   `photo_profil` varchar(100) DEFAULT NULL,
   `derniere_connexion` timestamp NULL DEFAULT NULL,
@@ -248,8 +248,8 @@ CREATE TABLE `Offre` (
   `type_professionnel` varchar(20) NOT NULL,
   `date_publication` date NOT NULL,
   `date_mission` date NOT NULL,
-  `heure_debut` time DEFAULT NULL,
-  `heure_fin` time DEFAULT NULL,
+  `heure_debut` datetime DEFAULT NULL,
+  `heure_fin` datetime DEFAULT NULL,
   `duree_heures` decimal(5,2) DEFAULT NULL,
   `remuneration` decimal(10,2) NOT NULL,
   `est_urgent` char(1) DEFAULT 'N',
@@ -283,18 +283,19 @@ DROP TABLE IF EXISTS `Message`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `Message` (
   `id_message` int NOT NULL AUTO_INCREMENT,
-  `expediteur_id` int NOT NULL,
-  `destinataire_id` int NOT NULL,
-  `contenu` varchar(1000) NOT NULL,
-  `fichier_joint` varchar(255) DEFAULT NULL,
-  `date_envoi` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `date_lecture` timestamp NULL DEFAULT NULL,
-  `est_lu` char(1) DEFAULT 'N',
+  `id_expediteur` int NOT NULL,
+  `id_destinataire` int NOT NULL,
+  `contenu` text NOT NULL,
+  `timestamp` datetime DEFAULT CURRENT_TIMESTAMP,
+  `est_lu` tinyint(1) DEFAULT '0',
+  `est_modifie` tinyint(1) DEFAULT '0',
+  `type_message` varchar(255) DEFAULT 'normal',
+  `id_offre` int DEFAULT NULL,
   PRIMARY KEY (`id_message`),
-  KEY `expediteur_id` (`expediteur_id`),
-  KEY `destinataire_id` (`destinataire_id`),
-  CONSTRAINT `message_ibfk_1` FOREIGN KEY (`expediteur_id`) REFERENCES `Utilisateur` (`id_utilisateur`) ON DELETE CASCADE,
-  CONSTRAINT `message_ibfk_2` FOREIGN KEY (`destinataire_id`) REFERENCES `Utilisateur` (`id_utilisateur`) ON DELETE CASCADE
+  KEY `id_expediteur` (`id_expediteur`),
+  KEY `id_destinataire` (`id_destinataire`),
+  CONSTRAINT `message_ibfk_1` FOREIGN KEY (`id_expediteur`) REFERENCES `Utilisateur` (`id_utilisateur`) ON DELETE CASCADE,
+  CONSTRAINT `message_ibfk_2` FOREIGN KEY (`id_destinataire`) REFERENCES `Utilisateur` (`id_utilisateur`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -316,13 +317,14 @@ DROP TABLE IF EXISTS `Message_Archive`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `Message_Archive` (
   `id_message` int NOT NULL,
-  `expediteur_id` int DEFAULT NULL,
-  `destinataire_id` int DEFAULT NULL,
-  `contenu` varchar(1000) DEFAULT NULL,
-  `fichier_joint` varchar(255) DEFAULT NULL,
-  `date_envoi` timestamp NULL DEFAULT NULL,
-  `date_lecture` timestamp NULL DEFAULT NULL,
-  `est_lu` char(1) DEFAULT NULL,
+  `id_expediteur` int DEFAULT NULL,
+  `id_destinataire` int DEFAULT NULL,
+  `contenu` text,
+  `timestamp` datetime DEFAULT NULL,
+  `est_lu` tinyint(1) DEFAULT NULL,
+  `est_modifie` tinyint(1) DEFAULT NULL,
+  `type_message` varchar(255) DEFAULT NULL,
+  `id_offre` int DEFAULT NULL,
   PRIMARY KEY (`id_message`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -720,7 +722,7 @@ CREATE DEFINER = CURRENT_USER TRIGGER `Archive_Messages` AFTER INSERT ON `Messag
 FOR EACH ROW
 BEGIN
     -- Vérifie si la date d'envoi est antérieure à 6 mois
-    IF NEW.date_envoi < NOW() - INTERVAL 6 MONTH THEN
+    IF NEW.`timestamp` < NOW() - INTERVAL 6 MONTH THEN
         -- Archive le message
         INSERT INTO Message_Archive
         SELECT * FROM Message WHERE id_message = NEW.id_message;

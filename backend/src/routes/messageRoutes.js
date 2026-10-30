@@ -8,6 +8,13 @@ const { Op } = require('sequelize');
 router.post('/', protect, async (req, res) => {
     try {
         const { id_destinataire, contenu, type_message, id_offre } = req.body;
+        if (!id_destinataire || !contenu || !String(contenu).trim()) {
+            return res.status(400).json({ message: 'Destinataire et contenu requis' });
+        }
+        const destinataire = await User.findByPk(id_destinataire);
+        if (!destinataire) {
+            return res.status(404).json({ message: 'Destinataire introuvable' });
+        }
 
         const nouveauMessage = await Message.create({
             id_expediteur: req.user.id_utilisateur,
@@ -23,6 +30,40 @@ router.post('/', protect, async (req, res) => {
         res.status(500).json({ message: 'Erreur serveur' });
     }
 }); 
+
+// Voir la liste des personnes avec qui j'ai discuté
+// ⚠️ Doit être déclarée AVANT '/:id_utilisateur', sinon Express la prend pour un id 
+router.get('/conversations', protect, async (req, res) => {
+  try {
+    const id = req.user.id_utilisateur;
+    const messages = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { id_expediteur: id },
+          { id_destinataire: id }
+        ]
+      },
+      attributes: ['id_expediteur', 'id_destinataire'],
+      raw: true
+    });
+
+    const interlocuteurs = new Set();
+    messages.forEach(msg => {
+      if (msg.id_expediteur !== id) interlocuteurs.add(msg.id_expediteur);
+      if (msg.id_destinataire !== id) interlocuteurs.add(msg.id_destinataire);
+    });
+
+    const utilisateurs = await User.findAll({
+      where: { id_utilisateur: Array.from(interlocuteurs) },
+      attributes: ['id_utilisateur', 'nom', 'prenom', 'courriel', 'type_utilisateur']
+    });
+
+    res.json(utilisateurs);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des conversations :', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
 
 // Obtenir tous les messages avec un utilisateur donné 
 router.get('/:id_utilisateur', protect, async (req, res) => {
@@ -78,39 +119,5 @@ router.delete('/:id', protect, async (req, res) => {
         res.status(500).json({ message: 'Erreur serveur' });
     }
 });
-
-// Voir la liste des conversations avec qui j'ai discuté 
-router.get('/conversations', protect, async (req, res) => {
-  try {
-    const id = req.user.id_utilisateur;
-    const messages = await Message.findAll({
-      where: {
-        [Op.or]: [
-          { id_expediteur: id },
-          { id_destinataire: id }
-        ]
-      },
-      attributes: ['id_expediteur', 'id_destinataire'],
-      raw: true
-    });
-
-    const interlocuteurs = new Set();
-    messages.forEach(message => {
-      if (msg.id_expediteur !== id) interlocuteurs.add(msg.id_expediteur);
-      if (msg.id_destinataire !== id) interlocuteurs.add(msg.id_destinataire);
-    });
-
-    const utilisateurs = await User.findAll({
-      where: { id_utilisateur: Array.from(interlocuteurs) },
-      attributes: ['id_utilisateur', 'nom', 'prenom', 'courriel', 'type_utilisateur']
-    });
-
-    res.json(utilisateurs);
-  } catch (error) {
-    console.error('Erreur lors de la récupération des conversations :', error);
-    res.status(500).json({ message: 'Erreur serveur' });
-  }
-});
-
 
 module.exports = router;

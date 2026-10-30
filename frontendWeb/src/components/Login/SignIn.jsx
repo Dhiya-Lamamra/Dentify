@@ -22,7 +22,8 @@ function SignIn({ type }) {
     console.log("Tentative de connexion avec:", credentials);
 
     try {
-      const response = await fetch("http://localhost:4000/api/users/login", {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+      const response = await fetch(`${API_URL}/users/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -40,11 +41,21 @@ function SignIn({ type }) {
       }
 
       const data = await response.json();
-      localStorage.setItem("token", data.token);
-      console.log("Connexion réussie. Token:", data.token);
 
-      // 🔹 Redirection dynamique selon le type d'utilisateur
-      if (credentials.type_utilisateur === "clinique") {
+      // 🔹 Le compte doit correspondre à l'onglet choisi (clinique / professionnel)
+      if (data.user?.type_utilisateur && data.user.type_utilisateur !== credentials.type_utilisateur) {
+        throw new Error(
+          data.user.type_utilisateur === "clinique"
+            ? "Ce compte est un compte clinique : utilisez la connexion Clinique."
+            : "Ce compte est un compte professionnel : utilisez la connexion Professionnel."
+        );
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // 🔹 Redirection selon le type réel du compte
+      if (data.user?.type_utilisateur === "clinique") {
         navigate("/pages/Connecte/PrincipaleClinique");
       } else {
         navigate("/pages/Connecte/Principale");

@@ -1,10 +1,14 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const { sequelize, connectDB } = require('./src/config/db');
+// 🔒 Charger les variables d'environnement AVANT tout le reste
+require('dotenv').config();
 
-// 🔒 Charger les variables d'environnement
-dotenv.config();
+const express = require('express');
+const cors = require('cors');
+const { connectDB } = require('./src/config/db');
+
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  JWT_SECRET manquant : un secret de développement est utilisé. Définis JWT_SECRET en production.');
+  process.env.JWT_SECRET = 'dentify-dev-secret';
+}
 
 const app = express();
 
@@ -12,7 +16,7 @@ const app = express();
 app.use(express.json());
 app.use(require('cookie-parser')()); // ← pour les tokens envoyés via cookie si besoin
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:8081,http://localhost:19006').split(','),
   credentials: true
 })); // Autoriser les requêtes du frontend (utile si backend = 4000, frontend = 5173)
 

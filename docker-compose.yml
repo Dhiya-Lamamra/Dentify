@@ -29,6 +29,7 @@ services:
       DB_USER: root
       DB_PASSWORD: rootpassword
       DB_NAME: dentify
+      JWT_SECRET: change-moi-en-production
     depends_on:
       mysql:
         condition: service_healthy

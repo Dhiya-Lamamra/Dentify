@@ -4,6 +4,22 @@ const ProfessionnelDentaire = require('../models/ProfessionnelDentaire');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// 🔑 Génère le token JWT + les infos publiques renvoyées au frontend
+const reponseAuth = (user) => ({
+  token: jwt.sign(
+    { id_utilisateur: user.id_utilisateur },
+    process.env.JWT_SECRET,
+    { expiresIn: "30d" }
+  ),
+  user: {
+    id_utilisateur: user.id_utilisateur,
+    nom: user.nom,
+    prenom: user.prenom,
+    courriel: user.courriel,
+    type_utilisateur: user.type_utilisateur
+  }
+});
+
 // ✅ INSCRIPTION
 const registerUser = async (req, res) => {
   try {
@@ -69,7 +85,8 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Type utilisateur invalide" });
     }
 
-    res.status(201).json({ message: "Utilisateur créé avec succès", user: newUser });
+    // On renvoie directement un token : l'utilisateur est connecté après l'inscription
+    res.status(201).json({ message: "Utilisateur créé avec succès", ...reponseAuth(newUser) });
 
   } catch (error) {
     console.error("❌ Erreur lors de l'inscription :", error);
@@ -145,19 +162,20 @@ const updateProfile = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { courriel, mot_de_passe } = req.body;
+    if (!courriel || !mot_de_passe) {
+      return res.status(400).json({ message: "Courriel et mot de passe requis" });
+    }
     const user = await User.findOne({ where: { courriel } });
 
     if (!user || !(await bcrypt.compare(mot_de_passe, user.mot_de_passe))) {
       return res.status(401).json({ message: "Identifiants incorrects" });
     }
 
-    const token = jwt.sign(
-      { id_utilisateur: user.id_utilisateur },
-      process.env.JWT_SECRET,
-      { expiresIn: "30d" }
-    );
+    user.derniere_connexion = new Date();
+    await user.save();
 
-    res.json({ token });
+    // token + type_utilisateur : le frontend redirige selon le VRAI type du compte
+    res.json(reponseAuth(user));
 
   } catch (error) {
     console.error("❌ Erreur lors de la connexion :", error);

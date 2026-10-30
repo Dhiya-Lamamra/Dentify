@@ -2,12 +2,13 @@ const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
 // 📦 Connexion à la base de données avec Sequelize
+// DB_PASSWORD (docker-compose) ou DB_PASS (ancien .env) sont acceptés
 const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASS,
+  process.env.DB_NAME || 'dentify',
+  process.env.DB_USER || 'root',
+  process.env.DB_PASSWORD ?? process.env.DB_PASS,
   {
-    host: process.env.DB_HOST,
+    host: process.env.DB_HOST || 'localhost',
     dialect: 'mysql',
     port: process.env.DB_PORT || 3306,
     logging: false,

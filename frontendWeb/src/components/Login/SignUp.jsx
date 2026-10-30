@@ -55,7 +55,9 @@ function SignUp({ type }) {
         body: requestData
       });
 
-      console.log("Inscription réussie :", response);
+      // Le backend renvoie un token : on connecte directement l'utilisateur
+      localStorage.setItem("token", response.token);
+      localStorage.setItem("user", JSON.stringify(response.user));
 
       if (formData.type_utilisateur === "clinique") {
         navigate("/pages/Connecte/PrincipaleClinique");

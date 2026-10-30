@@ -3,15 +3,54 @@ const router = express.Router();
 const { Offre, Candidature, User, CliniqueDentaire } = require('../models');
 const protect = require('../middlewares/authMiddleware');
 
+// 🔎 Retourne la clinique de l'utilisateur connecté (ou null)
+const getCliniqueDuUser = (id_utilisateur) =>
+  CliniqueDentaire.findOne({ where: { id_utilisateur } });
+
 // ✅ Obtenir toutes les offres disponibles (publique)
 router.get('/', async (req, res) => {
   try {
     const offres = await Offre.findAll({
+      where: { statut: 'active' },
       order: [['date_publication', 'DESC']]
     });
     res.json(offres);
   } catch (error) {
     console.error('Erreur lors de la récupération des offres :', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ✅ Offres de MA clinique (clinique connectée), toutes les offres y compris archivées
+router.get('/mes-offres', protect, async (req, res) => {
+  try {
+    const clinique = await getCliniqueDuUser(req.user.id_utilisateur);
+    if (!clinique) {
+      return res.status(403).json({ message: 'Réservé aux cliniques.' });
+    }
+    const offres = await Offre.findAll({
+      where: { id_clinique: clinique.id_clinique },
+      order: [['date_publication', 'DESC']]
+    });
+    res.json(offres);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de mes offres :', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// ✅ Détail d'une offre (publique)
+router.get('/:id', async (req, res) => {
+  try {
+    const offre = await Offre.findByPk(req.params.id, {
+      include: [{ model: CliniqueDentaire, attributes: ['id_clinique', 'nom_clinique', 'adresse_complete', 'id_utilisateur'] }]
+    });
+    if (!offre) {
+      return res.status(404).json({ message: 'Offre non trouvée' });
+    }
+    res.json(offre);
+  } catch (error) {
+    console.error("Erreur lors de la récupération de l'offre :", error);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
@@ -59,12 +98,18 @@ router.post('/creer', protect, async (req, res) => {
       date_modification
     } = req.body;
 
+    if (!titre || !descript || !type_professionnel || !date_mission || remuneration == null) {
+      return res.status(400).json({
+        message: 'Titre, description, type de professionnel, date de mission et rémunération sont requis.'
+      });
+    }
+
     const nouvelleOffre = await Offre.create({
-      id_clinique: clinique.id_clinique, // ✅ Fixé ici
+      id_clinique: clinique.id_clinique,
       titre,
       descript,
       type_professionnel,
-      date_publication,
+      date_publication: date_publication || new Date(),
       date_mission,
       heure_debut,
       heure_fin,
@@ -101,7 +146,9 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(404).json({ message: "Offre non trouvée" });
     }
 
-    if (offre.id_clinique !== utilisateur.id_utilisateur) {
+    // L'offre appartient à une CLINIQUE : on compare avec l'id de la clinique, pas de l'utilisateur
+    const clinique = await getCliniqueDuUser(utilisateur.id_utilisateur);
+    if (!clinique || offre.id_clinique !== clinique.id_clinique) {
       return res.status(403).json({ message: "Vous ne pouvez pas modifier cette offre." });
     }
 
@@ -139,7 +186,7 @@ router.put('/:id', protect, async (req, res) => {
     offre.latitude = latitude || offre.latitude;
     offre.longitude = longitude || offre.longitude;
     offre.adresse_complete = adresse_complete || offre.adresse_complete;
-    offre.date_modification = date_modification || offre.date_modification;
+    offre.date_modification = date_modification || new Date();
 
     await offre.save();
 
@@ -165,7 +212,9 @@ router.patch('/:id/archive', protect, async (req, res) => {
       return res.status(404).json({ message: "Offre non trouvée" });
     }
 
-    if (offre.id_clinique !== utilisateur.id_utilisateur) {
+    // L'offre appartient à une CLINIQUE : on compare avec l'id de la clinique, pas de l'utilisateur
+    const clinique = await getCliniqueDuUser(utilisateur.id_utilisateur);
+    if (!clinique || offre.id_clinique !== clinique.id_clinique) {
       return res.status(403).json({ message: "Vous ne pouvez pas archiver cette offre." });
     }
 
@@ -184,9 +233,17 @@ router.put('/accepter/:id', protect, async (req, res) => {
   try {
     const id_candidature = req.params.id;
 
-    const candidature = await Candidature.findByPk(id_candidature);
+    const candidature = await Candidature.findByPk(id_candidature, {
+      include: [{ model: Offre }]
+    });
     if (!candidature) {
-      return res.status(404).json({ message: 'introuvable' });
+      return res.status(404).json({ message: 'Candidature introuvable' });
+    }
+
+    // Seule la clinique qui a publié l'offre peut accepter une candidature
+    const clinique = await getCliniqueDuUser(req.user.id_utilisateur);
+    if (!clinique || candidature.Offre?.id_clinique !== clinique.id_clinique) {
+      return res.status(403).json({ message: 'Vous ne pouvez pas accepter cette candidature.' });
     }
 
     candidature.statut = 'acceptee';
