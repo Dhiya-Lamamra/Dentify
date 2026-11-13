@@ -17,7 +17,6 @@ const User = sequelize.define('Utilisateur', {  // ⬅️ Utilisation du bon nom
     photo_profil: { type: DataTypes.STRING },
     derniere_connexion: { type: DataTypes.DATE },
     compte_verifie: { type: DataTypes.CHAR(1), defaultValue: 'N' },
-    date_verification: { type: DataTypes.DATE },
     accepte_notifications: { type: DataTypes.CHAR(1), defaultValue: 'Y' }
 }, {
     tableName: 'Utilisateur',  // ⬅️ Force l'utilisation du bon nom de table

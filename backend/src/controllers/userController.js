@@ -218,7 +218,13 @@ const getProfile = async (req, res) => {
     }
     
     profil_complet = !!profil_complet;
-    res.json({ ...user.toJSON(), profil_complet });
+    // On joint aussi les infos spécifiques (permis, nom de clinique, site web...) pour les écrans de profil
+    res.json({
+      ...user.toJSON(),
+      profil_complet,
+      professionnel: pro ? pro.toJSON() : null,
+      clinique: clinique ? clinique.toJSON() : null
+    });
 
   } catch (error) {
     console.error("❌ Erreur lors de la récupération du profil :", error);

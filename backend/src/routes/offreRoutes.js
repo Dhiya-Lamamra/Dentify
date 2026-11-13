@@ -12,6 +12,7 @@ router.get('/', async (req, res) => {
   try {
     const offres = await Offre.findAll({
       where: { statut: 'active' },
+      include: [{ model: CliniqueDentaire, attributes: ['nom_clinique', 'adresse_complete', 'id_utilisateur'] }],
       order: [['date_publication', 'DESC']]
     });
     res.json(offres);

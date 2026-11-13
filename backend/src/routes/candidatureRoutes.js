@@ -88,7 +88,11 @@ router.get('/mes-candidatures', protect, async (req, res) => {
 
     const candidatures = await Candidature.findAll({
       where: { id_professionnel: professionnel.id_professionnel },
-      include: [{ model: Offre }],
+      // On inclut la clinique de l'offre : son nom à afficher + son id_utilisateur pour lui écrire
+      include: [{
+        model: Offre,
+        include: [{ model: CliniqueDentaire, attributes: ['nom_clinique', 'adresse_complete', 'id_utilisateur'] }]
+      }],
       order: [['date_candidature', 'DESC']]
     });
     res.json(candidatures);
