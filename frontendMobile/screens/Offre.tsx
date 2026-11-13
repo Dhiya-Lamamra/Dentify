@@ -1,47 +1,50 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, ActivityIndicator } from 'react-native';
 import { AntDesign, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { getOffres, postuler, formaterDate, formaterHeure, Offre as OffreType } from '../utils/api';
 
 
 const Offre = ({navigation}) => {
-  
-  
-  const offers = [
-    {
-      id: 1,
-      title: "Détartrage complet",
-      price: "135$",
-      clinic: "Avenue Sourire",
-      duration: "45 min",
-      rating: "4.8",
-      distance: "1.2 km"
-    },
-    {
-      id: 2,
-      title: "Blanchiment dentaire",
-      price: "250$",
-      clinic: "hellodent",
-      duration: "1h30",
-      rating: "4.6",
-      distance: "2.5 km"
-    },
-    {
-      id: 3,
-      title: "Consultation d'urgence",
-      price: "76$",
-      clinic: "Urgences Dentaires Montréal",
-      duration: "30 min",
-      rating: "4.2",
-      distance: "0.8 km"
+  const [offers, setOffers] = useState<OffreType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  // Pour chaque offre : message affiché sous le bouton après avoir postulé (succès ou erreur)
+  const [retours, setRetours] = useState<Record<number, { ok: boolean; texte: string }>>({});
+
+  // GET /api/offres : toutes les offres actives (route publique)
+  const chargerOffres = async () => {
+    setError("");
+    try {
+      setOffers(await getOffres());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', chargerOffres);
+    return unsubscribe;
+  }, [navigation]);
+
+  // POST /api/candidatures : le professionnel connecté postule à l'offre
+  const handlePostuler = async (id_offre: number) => {
+    try {
+      await postuler(id_offre);
+      setRetours((r) => ({ ...r, [id_offre]: { ok: true, texte: "Candidature envoyée ✔" } }));
+    } catch (e) {
+      // ex : "Vous avez déjà postulé à cette offre." (409) ou "Seuls les professionnels peuvent postuler." (403)
+      setRetours((r) => ({ ...r, [id_offre]: { ok: false, texte: e.message } }));
+    }
+  };
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
         {/* Header dans le ScrollView pour qu'il défile */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.navigate('/')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Accueil')}>
             <Image 
               source={require('../assets/dentify_logo_noir.png')} 
               style={styles.logo}
@@ -79,23 +82,42 @@ const Offre = ({navigation}) => {
             <Text style={[styles.subtitle, styles.activeSubtitle]}>• Proches</Text>
           </View>
 
+          {loading && <ActivityIndicator size="large" color="#6a9174" style={{ marginTop: 30 }} />}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {!loading && !error && offers.length === 0 && (
+            <Text style={styles.emptyText}>Aucune offre disponible pour le moment.</Text>
+          )}
+
           {offers.map((offer) => (
-            <View key={offer.id} style={styles.offerCard}>
-              <Text style={styles.offerTitle}>{offer.title}</Text>
-              <Text style={styles.offerPrice}>{offer.price}</Text>
-              
-              <Text style={styles.clinicName}>{offer.clinic}</Text>
-              
+            <View key={offer.id_offre} style={styles.offerCard}>
+              <Text style={styles.offerTitle}>{offer.titre}</Text>
+              <Text style={styles.offerPrice}>{offer.remuneration} $</Text>
+
+              <Text style={styles.clinicName}>
+                {offer.CliniqueDentaire?.nom_clinique ? `${offer.CliniqueDentaire.nom_clinique} · ` : ""}
+                {offer.type_professionnel}
+              </Text>
+              {offer.CliniqueDentaire?.adresse_complete ? <Text>{offer.CliniqueDentaire.adresse_complete}</Text> : null}
+              <Text>{offer.descript}</Text>
+
               <View style={styles.detailsRow}>
-                <Text style={styles.detailText}>{offer.duration}</Text>
-                <Text style={styles.ratingText}>{offer.rating}</Text>
-                <Text style={styles.distanceText}>{offer.distance}</Text>
+                <Text style={styles.detailText}>{formaterDate(offer.date_mission)}</Text>
+                {offer.heure_debut ? (
+                  <Text style={styles.detailText}>
+                    {formaterHeure(offer.heure_debut)} - {formaterHeure(offer.heure_fin)}
+                  </Text>
+                ) : null}
               </View>
 
-              {/* Bouton Réserver ajouté ici */}
-              <TouchableOpacity style={styles.reserveButton}>
+              {/* Postuler à l'offre */}
+              <TouchableOpacity style={styles.reserveButton} onPress={() => handlePostuler(offer.id_offre)}>
                 <Text style={styles.reserveButtonText}>Réserver</Text>
               </TouchableOpacity>
+              {retours[offer.id_offre] ? (
+                <Text style={retours[offer.id_offre].ok ? styles.successText : styles.errorText}>
+                  {retours[offer.id_offre].texte}
+                </Text>
+              ) : null}
             </View>
           ))}
 
@@ -125,10 +147,10 @@ const Offre = ({navigation}) => {
     
         <TouchableOpacity 
           style={styles.footerButton}
-          onPress={() => navigation.navigate('Calendrier')}
+          onPress={() => navigation.navigate('MesCandidatures')}
         >
           <AntDesign name="calendar" size={24} color={"white"} />
-          <Text style={styles.footerText}>Calendrier</Text>
+          <Text style={styles.footerText}>Candidatures</Text>
         </TouchableOpacity>
             
         <TouchableOpacity 
@@ -147,6 +169,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fbf2e8',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  successText: {
+    color: '#6a9174',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#777',
+    marginTop: 20,
   },
   scrollView: {
     flex: 1,

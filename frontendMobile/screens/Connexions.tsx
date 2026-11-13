@@ -1,13 +1,36 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { View, ScrollView, Text, TextInput, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { connexion } from "../utils/api";
 
 
 export default function Connexions({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleConnexion = async () => {
+    if (!email.trim() || !password) {
+      setError("Veuillez remplir le courriel et le mot de passe.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const user = await connexion(email.trim(), password);
+      // On redirige selon le VRAI type du compte (renvoyé par le backend),
+      // pas selon l'écran utilisé. reset() empêche de revenir sur la connexion avec "retour".
+      const accueil = user.type_utilisateur === "clinique" ? "AccueilClinique" : "Accueil";
+      navigation.reset({ index: 0, routes: [{ name: accueil }] });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: "#fbf2e8" }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
 
        <TouchableOpacity style={styles.buttonBack} onPress={() => navigation.navigate("Indexx")}>
         <Text style={styles.buttonTextBack}> Retour à la page principale </Text>
@@ -38,9 +61,11 @@ export default function Connexions({ navigation }) {
         onChangeText={setPassword}
         value={password}
       />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
         {/* Bouton pour se connecter */}
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate("Accueil")}>
-        <Text style={styles.buttonText}>Se connecter</Text>
+      <TouchableOpacity style={styles.button} onPress={handleConnexion} disabled={loading}>
+        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Se connecter</Text>}
       </TouchableOpacity>
 
         {/* Si une clinique ou pas de compte */}
@@ -57,14 +82,14 @@ export default function Connexions({ navigation }) {
           <Text style={styles.linkText}>Créer un compte</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1, // flexGrow (et non flex) : le contenu peut dépasser l'écran et défiler
     backgroundColor: "#fbf2e8", 
     justifyContent: "center",
     alignItems: "center",
@@ -132,7 +157,13 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
-    color: "#34607d", 
+    color: "#34607d",
     fontWeight: "bold",
+  },
+  errorText: {
+    color: "red",
+    fontSize: 14,
+    marginBottom: 10,
+    textAlign: "center",
   },
 });

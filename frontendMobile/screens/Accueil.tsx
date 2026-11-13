@@ -72,10 +72,10 @@ const Accueil = ({navigation}) => {
 
         <TouchableOpacity 
           style={styles.footerButton}
-          onPress={() => navigation.navigate('Calendrier')}
+          onPress={() => navigation.navigate('MesCandidatures')}
         >
           <AntDesign name="calendar" style={styles.footerIcon} />
-          <Text style={styles.footerText}>Calendrier</Text>
+          <Text style={styles.footerText}>Candidatures</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 

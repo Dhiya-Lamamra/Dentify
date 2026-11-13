@@ -31,7 +31,7 @@ const AccueilClinique = ({navigation}) => {
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.iconButton}
-            onPress={() => navigation.navigate('ProfilClinique')}
+            onPress={() => navigation.navigate('ProfilCli')}
           >
             <MaterialCommunityIcons name="account-circle-outline" style={styles.iconText} />
           </TouchableOpacity>
@@ -43,7 +43,7 @@ const AccueilClinique = ({navigation}) => {
         <View style={styles.plusContainer}>
           <TouchableOpacity 
             style={styles.plusCircle}
-            onPress={() => navigation.navigate('ProfilClinique')}
+            onPress={() => navigation.navigate('ProfilCli')}
           >
             <Text style={styles.plusText}>+</Text>
           </TouchableOpacity>
@@ -72,7 +72,7 @@ const AccueilClinique = ({navigation}) => {
         
         <TouchableOpacity 
           style={styles.footerButton}
-          onPress={() => navigation.navigate('AccueilMore')}
+          onPress={() => navigation.navigate('AccueilMoreCli')}
         >
           <MaterialIcons name="more-horiz" size={24} color="white" />
           <Text style={styles.footerText}>Plus</Text>

@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert, Modal } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert, Modal, Platform, ActivityIndicator } from "react-native";
 import { AntDesign, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import OffreStore from "../utils/OffreStore"; 
+import { creerOffre, versDateSQL } from "../utils/api";
 import { ScrollView } from "react-native-gesture-handler";
 import DropDownPicker from 'react-native-dropdown-picker';
 
@@ -23,46 +23,87 @@ export default function CreationOffre({ navigation, route }) {
   const [heureFin, setHeureFin] = useState("");
   const [exigences, setExigences] = useState("");
   const [remuneration, setRemuneration] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleNavigation = (page) => {
     setActivePage(page);
     navigation.navigate(page);
   };
 
-  const handlePublier = () => {
-    if (titre.trim() && description.trim() && profession && heureDebut && heureFin && exigences && remuneration) {
-      // crée nouvelle offre
-      const newOffre = { titre, description, profession, date: date.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }), heureDebut, heureFin, exigences, remuneration };
-      
-      // ajout au store
-      const savedOffre = OffreStore.addOffre(newOffre);
-      
-      // affiche confirmation de l'offre publié si respecte tout
-      Alert.alert(
-        "Succès",
-        "Votre offre a été publiée avec succès!",
-        [{ text: "OK", onPress: () => {
-          // naviguer vers Mesoffres avec la nouvelle offre
-          navigation.navigate("Mesoffres", { newOffre: savedOffre });
-          
-          // réinitialiser les champs
-          setTitre("");
-          setDescription("");
-          setProfession("");
-          setDate(new Date());
-          setHeureDebut("");
-          setHeureFin("");
-          setExigences("");
-          setRemuneration("");
-        }}]
-      );
-    } else {
-      // affiche erreur si un/des champs est/sont vide(s) 
-      Alert.alert(
-        "Erreur",
-        "Veuillez remplir tous les champs requis.",
-        [{ text: "OK" }]
-      );
+  // Alert.alert ne fait rien sur la version web : on utilise window.alert dans ce cas
+  const afficherMessage = (titreMsg: string, message: string) => {
+    if (Platform.OS === "web") window.alert(`${titreMsg}\n\n${message}`);
+    else Alert.alert(titreMsg, message);
+  };
+
+  // "9:30" → Date du jour de la mission à 9h30 (heure locale du téléphone), ou null si invalide
+  const heureSurDate = (hhmm: string): Date | null => {
+    const match = hhmm.trim().match(/^(\d{1,2})[:hH](\d{2})$/);
+    if (!match) return null;
+    const h = Number(match[1]);
+    const m = Number(match[2]);
+    if (h > 23 || m > 59) return null;
+    const d = new Date(date);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+
+  const handlePublier = async () => {
+    // 1. Champs obligatoires
+    if (!(titre.trim() && description.trim() && profession && heureDebut && heureFin && remuneration)) {
+      afficherMessage("Erreur", "Veuillez remplir tous les champs requis.");
+      return;
+    }
+
+    // 2. Conversion des heures "HH:MM" en vraies dates
+    const debut = heureSurDate(heureDebut);
+    const fin = heureSurDate(heureFin);
+    if (!debut || !fin) {
+      afficherMessage("Erreur", "Les heures doivent être au format HH:MM (ex : 09:00).");
+      return;
+    }
+    if (fin <= debut) {
+      afficherMessage("Erreur", "L'heure de fin doit être après l'heure de début.");
+      return;
+    }
+
+    // 3. Rémunération : on accepte "45", "45,50" ou "45$"
+    const salaire = parseFloat(remuneration.replace(",", ".").replace(/[^\d.]/g, ""));
+    if (isNaN(salaire)) {
+      afficherMessage("Erreur", "La rémunération doit être un nombre.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 4. On traduit les champs de l'écran vers les noms de colonnes du backend
+      await creerOffre({
+        titre: titre.trim(),
+        descript: description.trim(),
+        type_professionnel: profession,
+        date_mission: versDateSQL(date),
+        heure_debut: debut.toISOString(), // ISO en UTC : aucune ambiguïté de fuseau horaire
+        heure_fin: fin.toISOString(),
+        duree_heures: Math.round(((fin.getTime() - debut.getTime()) / 3600000) * 100) / 100,
+        remuneration: salaire,
+        competences_requises: exigences.trim() || null,
+      });
+
+      // 5. Réinitialiser le formulaire puis aller voir la liste (qui se recharge depuis le serveur)
+      setTitre("");
+      setDescription("");
+      setProfession("");
+      setDate(new Date());
+      setHeureDebut("");
+      setHeureFin("");
+      setExigences("");
+      setRemuneration("");
+      afficherMessage("Succès", "Votre offre a été publiée avec succès!");
+      navigation.navigate("Mesoffres");
+    } catch (e) {
+      afficherMessage("Erreur", e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,12 +162,26 @@ export default function CreationOffre({ navigation, route }) {
 
 
       <Text style={styles.label}>Sélectionner une date :</Text>
+      {Platform.OS === "web" ? (
+        // Le DateTimePicker natif n'existe pas sur le web : on utilise le champ date du navigateur
+        <input
+          type="date"
+          value={versDateSQL(date)}
+          min={versDateSQL(new Date())}
+          onChange={(e) => {
+            const [a, m, j] = e.target.value.split("-").map(Number);
+            if (a && m && j) setDate(new Date(a, m - 1, j));
+          }}
+          style={{ padding: 10, fontSize: 16, borderRadius: 10, border: "1px solid #ae9f86", marginBottom: 15 }}
+        />
+      ) : (
       <TouchableOpacity onPress={() => setShowModal(true)} style={styles.datePicker}>
         <AntDesign name="calendar" size={24} color="#6a9174" style={styles.icon} />
         <Text style={styles.dateText}>
           {date.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
         </Text>
       </TouchableOpacity>
+      )}
 
       {/* Modal pour afficher le DateTimePicker */}
       <Modal transparent={true} animationType="slide" visible={showModal} onRequestClose={() => setShowModal(false)}>
@@ -159,14 +214,14 @@ export default function CreationOffre({ navigation, route }) {
         />
       
       {/* Exigences et rémunération */}
-      <Text style={styles.label}>Exigences :</Text>
+      <Text style={styles.label}>Exigences (optionnel) :</Text>
       <TextInput style={styles.input} placeholder="Exigences" value={exigences} onChangeText={setExigences} />
 
-      <Text style={styles.label}>Salaire :</Text>
-      <TextInput style={styles.input} placeholder="Rémunération" value={remuneration} onChangeText={setRemuneration} />
+      <Text style={styles.label}>Salaire ($) :</Text>
+      <TextInput style={styles.input} placeholder="Rémunération (ex : 45)" value={remuneration} onChangeText={setRemuneration} keyboardType="decimal-pad" />
 
-        <TouchableOpacity style={styles.publishButton} onPress={handlePublier}>
-          <Text style={styles.publishButtonText}>Publier l'offre</Text>
+        <TouchableOpacity style={styles.publishButton} onPress={handlePublier} disabled={loading}>
+          {loading ? <ActivityIndicator color="white" /> : <Text style={styles.publishButtonText}>Publier l'offre</Text>}
         </TouchableOpacity>
       </ScrollView>
 

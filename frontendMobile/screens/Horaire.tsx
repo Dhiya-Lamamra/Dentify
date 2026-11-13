@@ -1,34 +1,32 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Animated } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, ActivityIndicator } from 'react-native';
 import { AntDesign, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { getMesCandidatures, formaterDate, formaterHeure, Candidature } from '../utils/api';
 
 
+// Mon horaire = mes candidatures ACCEPTÉES par une clinique, triées par date de mission
 const Horaire = ({navigation}) => {
-  
- 
-  const appointments = [
-    {
-      id: 1,
-      date: "Samedi 5 avril 2025",
-      time: "09:00 - 10:30",
-      patient: "Jean Dupont",
-      procedure: "Détartrage complet"
-    },
-    {
-      id: 2,
-      date: "Mardi 8 avril 2025", 
-      time: "14:00 - 15:00",
-      patient: "Marie Martin",
-      procedure: "Consultation dentaire"
-    },
-    {
-      id: 3,
-      date: "Jeudi 18 Mars 2024",
-      time: "10:30 - 11:30",
-      patient: "Mohamed Yasser",
-      procedure: "Pose d'implant"
+  const [missions, setMissions] = useState<Candidature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const charger = async () => {
+    setError("");
+    try {
+      const toutes = await getMesCandidatures();
+      setMissions(
+        toutes
+          .filter((c) => c.statut === "acceptee" && c.Offre)
+          .sort((a, b) => a.Offre.date_mission.localeCompare(b.Offre.date_mission))
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  useEffect(() => navigation.addListener('focus', charger), [navigation]);
 
   
   return (
@@ -70,26 +68,49 @@ const Horaire = ({navigation}) => {
         <View style={styles.content}>
           <Text style={styles.sectionTitle}>Mon horaire</Text>
           
-          {appointments.map((appointment) => (
-            <View key={appointment.id} style={styles.appointmentCard}>
-              <Text style={styles.appointmentDate}>{appointment.date}</Text>
-              <View style={styles.timeContainer}>
-                <Text style={styles.appointmentTime}>{appointment.time}</Text>
+          {loading && <ActivityIndicator size="large" color="#6a9174" style={{ marginTop: 30 }} />}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {!loading && !error && missions.length === 0 && (
+            <Text style={styles.emptyText}>
+              Aucune mission confirmée pour le moment.{"\n"}Vos candidatures acceptées apparaîtront ici.
+            </Text>
+          )}
+
+          {missions.map(({ id_candidature, Offre: offre }) => {
+            const clinique = offre.CliniqueDentaire;
+            return (
+              <View key={id_candidature} style={styles.appointmentCard}>
+                <Text style={styles.appointmentDate}>{formaterDate(offre.date_mission)}</Text>
+                {offre.heure_debut ? (
+                  <View style={styles.timeContainer}>
+                    <Text style={styles.appointmentTime}>
+                      {formaterHeure(offre.heure_debut)} - {formaterHeure(offre.heure_fin)}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.detailsContainer}>
+                  <Text style={styles.patientName}>{clinique?.nom_clinique ?? "Clinique"}</Text>
+                  <Text style={styles.procedure}>{offre.titre}</Text>
+                  {clinique?.adresse_complete ? <Text style={styles.procedure}>{clinique.adresse_complete}</Text> : null}
+                </View>
+                {clinique ? (
+                  <View style={styles.actionsContainer}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() =>
+                        navigation.navigate('ChatScreen', {
+                          id_utilisateur: clinique.id_utilisateur,
+                          nom: clinique.nom_clinique,
+                        })
+                      }
+                    >
+                      <Text style={styles.actionText}>Contacter la clinique</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </View>
-              <View style={styles.detailsContainer}>
-                <Text style={styles.patientName}>{appointment.patient}</Text>
-                <Text style={styles.procedure}>{appointment.procedure}</Text>
-              </View>
-              <View style={styles.actionsContainer}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Text style={styles.actionText}>Confirmer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, {backgroundColor: '#ffecec'}]}>
-                  <Text style={[styles.actionText, {color: '#ff6b6b'}]}>Annuler</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -111,12 +132,12 @@ const Horaire = ({navigation}) => {
             <Text style={styles.footerText}> Offres </Text>
           </TouchableOpacity>
       
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.footerButton}
-            onPress={() => navigation.navigate('Calendrier')}
+            onPress={() => navigation.navigate('MesCandidatures')}
           >
             <AntDesign name="calendar" size={24} color={"white"} />
-            <Text style={styles.footerText}>Calendrier</Text>
+            <Text style={styles.footerText}>Candidatures</Text>
           </TouchableOpacity>
               
           <TouchableOpacity 
@@ -132,6 +153,17 @@ const Horaire = ({navigation}) => {
 };
 
 const styles = StyleSheet.create({
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#777',
+    marginTop: 20,
+    lineHeight: 22,
+  },
   iconText: {
     fontSize: 24,
     color: 'white',

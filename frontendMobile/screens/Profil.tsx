@@ -1,289 +1,274 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
-import { MaterialCommunityIcons, Feather, FontAwesome } from '@expo/vector-icons';
+import React, { useEffect, useState } from "react";
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  ActivityIndicator, KeyboardTypeOptions,
+} from "react-native";
+import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import EnTete, { couleurs } from "../utils/EnTete";
+import { getProfil, majProfil, deconnecter, Profil as ProfilType } from "../utils/api";
 
+// Un champ du formulaire : clé envoyée au backend + libellé + limite de la colonne en base
+type Champ = { cle: string; label: string; max?: number; clavier?: KeyboardTypeOptions; obligatoire?: boolean };
 
-const Profil = ({navigation}) => {
+// Champs obligatoires = ceux que le backend vérifie pour "profil_complet"
+const CHAMPS_PRO: Champ[] = [
+  { cle: "prenom", label: "Prénom", max: 100, obligatoire: true },
+  { cle: "nom", label: "Nom", max: 100, obligatoire: true },
+  { cle: "type_profession", label: "Profession (ex : Dentiste)", max: 20, obligatoire: true },
+  { cle: "numero_permis", label: "Numéro de permis", max: 10, obligatoire: true },
+  { cle: "annees_experience", label: "Années d'expérience", clavier: "number-pad" },
+  { cle: "tarif_horaire", label: "Tarif horaire ($)", clavier: "decimal-pad" },
+  { cle: "adresse", label: "Adresse", max: 50, obligatoire: true },
+  { cle: "ville", label: "Ville", max: 50, obligatoire: true },
+  { cle: "province", label: "Province", max: 25 },
+  { cle: "code_postal", label: "Code postal", max: 10, obligatoire: true },
+  { cle: "site_web", label: "Site web", max: 100 },
+];
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [profile, setProfile] = useState({
-    name: "Kenzo Tenma",
-    company: "Dentify",
-    position: "Docteur",
-    website: "http://www.Dentify.com/",
-    documents: ["CV.pdf", "Diplôme.pdf"]
+const CHAMPS_CLINIQUE: Champ[] = [
+  { cle: "nom_clinique", label: "Nom de la clinique", max: 100, obligatoire: true },
+  { cle: "numero_entreprise", label: "Numéro d'entreprise (NEQ)", max: 10, obligatoire: true },
+  { cle: "adresse_complete", label: "Adresse complète de la clinique", max: 255, obligatoire: true },
+  { cle: "adresse", label: "Adresse", max: 50, obligatoire: true },
+  { cle: "ville", label: "Ville", max: 50, obligatoire: true },
+  { cle: "province", label: "Province", max: 25 },
+  { cle: "code_postal", label: "Code postal", max: 10, obligatoire: true },
+  { cle: "horaire_ouverture", label: "Heures d'ouverture", max: 500 },
+  { cle: "site_web", label: "Site web", max: 100 },
+];
+
+const CHAMPS_NUMERIQUES = ["annees_experience", "tarif_horaire"];
+
+// Aplatit la réponse du backend (user + professionnel/clinique) en { cle: "texte" } pour les TextInput
+function versFormulaire(p: ProfilType): Record<string, string> {
+  const tout = { ...p, ...(p.professionnel ?? {}), ...(p.clinique ?? {}) };
+  const form: Record<string, string> = {};
+  [...CHAMPS_PRO, ...CHAMPS_CLINIQUE].forEach(({ cle }) => {
+    form[cle] = tout[cle] != null ? String(tout[cle]) : "";
   });
+  return form;
+}
 
-  const handleChange = (field: string, value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
+// Écran de profil pour les DEUX types de compte (ProfilCli réutilise ce composant)
+export default function Profil({ navigation }) {
+  const [profil, setProfil] = useState<ProfilType | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [succes, setSucces] = useState("");
+
+  const charger = async () => {
+    try {
+      const p = await getProfil();
+      setProfil(p);
+      setForm(versFormulaire(p));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const pickDocument = () => {
-    const newDocName = `Document_${profile.documents.length + 1}.pdf`;
-    setProfile(prev => ({
-      ...prev,
-      documents: [...prev.documents, newDocName]
-    }));
-    Alert.alert("Document simulé", `${newDocName} a été ajouté`);
+  useEffect(() => {
+    charger();
+  }, []);
+
+  const estClinique = profil?.type_utilisateur === "clinique";
+  const champs = estClinique ? CHAMPS_CLINIQUE : CHAMPS_PRO;
+
+  const handleEnregistrer = async () => {
+    setError("");
+    setSucces("");
+    // On n'envoie que les champs de ce type de compte, en nombres pour les champs numériques
+    const donnees: Record<string, unknown> = {};
+    for (const { cle } of champs) {
+      const valeur = form[cle].trim();
+      if (CHAMPS_NUMERIQUES.includes(cle)) {
+        if (valeur === "") continue; // vide = on ne touche pas à la valeur existante
+        const n = Number(valeur.replace(",", "."));
+        if (isNaN(n)) {
+          setError(`« ${champs.find((c) => c.cle === cle)?.label} » doit être un nombre.`);
+          return;
+        }
+        donnees[cle] = n;
+      } else {
+        donnees[cle] = valeur;
+      }
+    }
+    // Pour une clinique, "nom" (Utilisateur) = nom affiché dans la messagerie : on le garde synchronisé
+    if (estClinique) donnees.nom = donnees.nom_clinique;
+
+    setSaving(true);
+    try {
+      await majProfil(donnees);
+      await charger(); // relit le profil (et recalcule "profil complet")
+      setIsEditing(false);
+      setSucces("Profil mis à jour.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const removeDocument = (index: number) => {
-    setProfile(prev => ({
-      ...prev,
-      documents: prev.documents.filter((_, i) => i !== index)
-    }));
+  const handleDeconnexion = async () => {
+    await deconnecter();
+    navigation.reset({ index: 0, routes: [{ name: "Indexx" }] });
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <EnTete titre="Mon profil" navigation={navigation} />
+        <ActivityIndicator size="large" color={couleurs.vert} style={{ marginTop: 30 }} />
+      </View>
+    );
+  }
+
+  if (!profil) {
+    return (
+      <View style={styles.container}>
+        <EnTete titre="Mon profil" navigation={navigation} />
+        <Text style={styles.error}>{error || "Profil introuvable."}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Bouton de retour */}
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Feather name="arrow-left" size={24} color="#6a9174" />
-      </TouchableOpacity>
-
-      {/* Bouton d'édition */}
-      <TouchableOpacity 
-        style={styles.editToggle}
-        onPress={() => setIsEditing(!isEditing)}
-      >
-        <Feather name={isEditing ? "check" : "edit"} size={24} color="#6a9174" />
-      </TouchableOpacity>
+      <EnTete titre="Mon profil" navigation={navigation} />
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Icône de profil */}
-        <View style={styles.profileIcon}>
-          <MaterialCommunityIcons 
-            name="account-circle" 
-            size={100} 
-            color="#6a9174" 
+        <View style={styles.entete}>
+          <MaterialCommunityIcons
+            name={estClinique ? "hospital-building" : "account-circle"}
+            size={90}
+            color={couleurs.vert}
           />
+          <Text style={styles.nom}>
+            {estClinique ? profil.clinique?.nom_clinique ?? profil.nom : `${profil.prenom} ${profil.nom}`}
+          </Text>
+          <Text style={styles.courriel}>{profil.courriel}</Text>
+          <Text style={styles.type}>{estClinique ? "Clinique" : "Professionnel"}</Text>
         </View>
 
-        {/* Nom */}
-        <Text style={styles.nameLabel}>Nom *</Text>
-        {isEditing ? (
-          <TextInput
-            style={styles.input}
-            value={profile.name}
-            onChangeText={(text) => handleChange('name', text)}
-          />
-        ) : (
-          <Text style={styles.name}>{profile.name}</Text>
+        {!profil.profil_complet && (
+          <View style={styles.alerte}>
+            <Feather name="alert-circle" size={18} color="#8a6d3b" />
+            <Text style={styles.alerteTexte}>
+              Profil incomplet : remplissez les champs marqués d'un *.
+            </Text>
+          </View>
         )}
 
-        {/* Informations société */}
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoLabel}>Société</Text>
-          {isEditing ? (
-            <TextInput
-              style={styles.input}
-              value={profile.company}
-              onChangeText={(text) => handleChange('company', text)}
-            />
-          ) : (
-            <Text style={styles.infoValue}>{profile.company}</Text>
-          )}
+        {succes ? <Text style={styles.succes}>{succes}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Text style={styles.infoLabel}>Poste</Text>
-          {isEditing ? (
-            <TextInput
-              style={styles.input}
-              value={profile.position}
-              onChangeText={(text) => handleChange('position', text)}
-            />
-          ) : (
-            <Text style={styles.infoValue}>{profile.position}</Text>
-          )}
-        </View>
+        {champs.map(({ cle, label, max, clavier, obligatoire }) => (
+          <View key={cle} style={styles.champ}>
+            <Text style={styles.label}>{label}{obligatoire ? " *" : ""}</Text>
+            {isEditing ? (
+              <TextInput
+                style={styles.input}
+                value={form[cle]}
+                onChangeText={(t) => setForm((f) => ({ ...f, [cle]: t }))}
+                maxLength={max}
+                keyboardType={clavier}
+                autoCapitalize={cle === "site_web" ? "none" : "sentences"}
+              />
+            ) : (
+              <Text style={styles.valeur}>{form[cle] || "—"}</Text>
+            )}
+          </View>
+        ))}
 
-        {/* Séparateur */}
-        <View style={styles.separator} />
-
-        {/* Biographie */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Biographie</Text>
-          
-          <Text style={styles.infoLabel}>Site Internet</Text>
-          {isEditing ? (
-            <TextInput
-              style={styles.input}
-              value={profile.website}
-              onChangeText={(text) => handleChange('website', text)}
-            />
-          ) : (
-            <TouchableOpacity>
-              <Text style={styles.linkText}>{profile.website}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Section Documents */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Documents</Text>
-          
-          {profile.documents.map((doc, index) => (
-            <View key={index} style={styles.documentItem}>
-              <FontAwesome name="file-text-o" size={20} color="#6a9174" />
-              <Text style={styles.documentName}>{doc}</Text>
-              {isEditing && (
-                <TouchableOpacity onPress={() => removeDocument(index)}>
-                  <Feather name="trash-2" size={20} color="#ff6b6b" />
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
-          
-          {isEditing && (
-            <TouchableOpacity 
-              style={styles.addButton}
-              onPress={pickDocument}
+        {isEditing ? (
+          <View style={styles.rangee}>
+            <TouchableOpacity
+              style={[styles.bouton, { backgroundColor: "#999" }]}
+              onPress={() => {
+                setForm(versFormulaire(profil)); // annule les modifications
+                setIsEditing(false);
+                setError("");
+              }}
             >
-              <Feather name="plus" size={20} color="#6a9174" />
-              <Text style={styles.addButtonText}>Ajouter un document</Text>
+              <Text style={styles.boutonTexte}>Annuler</Text>
             </TouchableOpacity>
-          )}
-        </View>
-
-        {isEditing && (
-          <TouchableOpacity 
-            style={styles.validateButton}
+            <TouchableOpacity style={styles.bouton} onPress={handleEnregistrer} disabled={saving}>
+              {saving ? <ActivityIndicator color="white" /> : <Text style={styles.boutonTexte}>Enregistrer</Text>}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.bouton}
             onPress={() => {
-              setIsEditing(false);
-              Alert.alert("Succès", "Profil mis à jour");
+              setSucces("");
+              setIsEditing(true);
             }}
           >
-            <Text style={styles.validateButtonText}>Enregistrer les modifications</Text>
+            <Text style={styles.boutonTexte}>Modifier le profil</Text>
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity style={styles.deconnexion} onPress={handleDeconnexion}>
+          <Feather name="log-out" size={18} color={couleurs.rouge} />
+          <Text style={styles.deconnexionTexte}>Se déconnecter</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fbf2e8',
-    paddingTop: 50,
+  container: { flex: 1, backgroundColor: couleurs.beige },
+  content: { padding: 20, paddingBottom: 40 },
+  entete: { alignItems: "center", marginBottom: 16 },
+  nom: { fontSize: 22, fontWeight: "bold", color: couleurs.bleu, marginTop: 6, textAlign: "center" },
+  courriel: { color: "#666", marginTop: 2 },
+  type: { color: couleurs.vert, fontWeight: "bold", marginTop: 4 },
+  alerte: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fcf8e3",
+    borderColor: "#faebcc",
+    borderWidth: 1,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
   },
-  backButton: {
-    position: 'absolute',
-    top: 30,
-    left: 30,
-    zIndex: 1,
-  },
-  editToggle: {
-    position: 'absolute',
-    top: 30,
-    right: 30,
-    zIndex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
-  },
-  profileIcon: {
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  nameLabel: {
-    color: '#6a9174',
-    fontSize: 12,
-    marginBottom: 5,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#34607d',
-    marginBottom: 20,
-  },
+  alerteTexte: { color: "#8a6d3b", marginLeft: 8, flex: 1 },
+  champ: { marginBottom: 12 },
+  label: { color: couleurs.vert, fontSize: 13, marginBottom: 4, fontWeight: "600" },
+  valeur: { fontSize: 16, color: "#222" },
   input: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: couleurs.bordure,
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     fontSize: 16,
   },
-  infoContainer: {
-    marginBottom: 20,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-  },
-  infoValue: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 15,
-    fontWeight: '500',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#ddd',
-    marginVertical: 20,
-  },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#34607d',
-    marginBottom: 15,
-  },
-  linkText: {
-    fontSize: 16,
-    color: '#6a9174',
-    marginBottom: 15,
-    textDecorationLine: 'underline',
-  },
-  documentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  documentName: {
+  rangee: { flexDirection: "row", gap: 10 },
+  bouton: {
     flex: 1,
-    marginLeft: 10,
-    color: '#333',
+    backgroundColor: couleurs.vert,
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
   },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  boutonTexte: { color: "white", fontWeight: "bold", fontSize: 16 },
+  deconnexion: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 24,
     padding: 12,
-    borderWidth: 1,
-    borderColor: '#6a9174',
-    borderRadius: 8,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
   },
-  addButtonText: {
-    color: '#6a9174',
-    marginLeft: 10,
-    fontWeight: 'bold',
-  },
-  validateButton: {
-    backgroundColor: '#6a9174',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  validateButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  deconnexionTexte: { color: couleurs.rouge, fontWeight: "bold", marginLeft: 8, fontSize: 16 },
+  succes: { color: couleurs.vert, fontWeight: "bold", textAlign: "center", marginBottom: 10 },
+  error: { color: "red", textAlign: "center", marginVertical: 10 },
 });
-
-export default Profil;

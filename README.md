@@ -49,6 +49,10 @@ Arrêter : `docker compose down` — repartir d'une base vide : `docker compose 
    npm install
    npx expo start        # appuyer sur w pour la version web, ou scanner le QR code avec Expo Go
    ```
+   L'app appelle l'API sur le port 4000 : le backend doit être lancé. L'adresse est trouvée
+   automatiquement (`frontendMobile/utils/config.ts`) : `localhost` en version web, l'IP du PC
+   sur le Wi-Fi avec Expo Go. Pour la forcer : `EXPO_PUBLIC_API_URL=http://192.168.x.x:4000/api`
+   dans `frontendMobile/.env`. Sur téléphone, autoriser le port 4000 dans le pare-feu Windows.
 
 ## API principale
 

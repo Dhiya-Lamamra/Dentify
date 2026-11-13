@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
 export default function AboutScreen({ navigation }) {
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: "#fbf2e8" }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       {/* Bouton Retour */}
       
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -29,13 +29,13 @@ export default function AboutScreen({ navigation }) {
           Texte Text Text Texte Texte Texte Texte
         </Text>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1, // flexGrow (et non flex) : le contenu peut dépasser l'écran et défiler
     backgroundColor: '#fbf2e8',
     alignItems: 'center',
     justifyContent: 'center',

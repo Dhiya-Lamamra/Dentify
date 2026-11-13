@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { View, ScrollView, Text, TextInput, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { inscription } from "../utils/api";
 
 export default function InscriptionCli({ navigation }) {
 
@@ -8,18 +9,37 @@ export default function InscriptionCli({ navigation }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleInscription = () => {
+  const handleInscription = async () => {
+    if (!nom.trim() || !email.trim() || !password) {
+      setError("Veuillez remplir tous les champs.");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Les mots de passe ne correspondent pas.");
       return;
     }
     setError("");
-    navigation.navigate("ConnexionCli");
+    setLoading(true);
+    try {
+      // Pour une clinique, le backend attend "nom_clinique" (il crée le User + la CliniqueDentaire)
+      await inscription({
+        type_utilisateur: "clinique",
+        nom_clinique: nom.trim(),
+        courriel: email.trim(),
+        mot_de_passe: password,
+      });
+      navigation.reset({ index: 0, routes: [{ name: "AccueilClinique" }] });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: "#fbf2e8" }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
 
       <TouchableOpacity style={styles.buttonBack} onPress={() => navigation.navigate("Indexx")}>
         <Text style={styles.buttonTextBack}> Retour à la page principale </Text>
@@ -37,8 +57,9 @@ export default function InscriptionCli({ navigation }) {
       value={nom} />
       <TextInput style={styles.input} 
       placeholder="Adresse courriel" 
-      keyboardType="email-address" 
-      onChangeText={setEmail} 
+      keyboardType="email-address"
+      autoCapitalize="none"
+      onChangeText={setEmail}
       value={email} />
       <TextInput style={styles.input} 
       placeholder="Mot de passe" 
@@ -54,8 +75,8 @@ export default function InscriptionCli({ navigation }) {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {/* Bouton pour s'inscrire */}
-      <TouchableOpacity style={styles.button} onPress={handleInscription}>
-        <Text style={styles.buttonText}>S'inscrire</Text>
+      <TouchableOpacity style={styles.button} onPress={handleInscription} disabled={loading}>
+        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>S'inscrire</Text>}
       </TouchableOpacity>
 
 
@@ -73,13 +94,13 @@ export default function InscriptionCli({ navigation }) {
           <Text style={styles.linkText}>Connexion</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1, // flexGrow (et non flex) : le contenu peut dépasser l'écran et défiler
     backgroundColor: "#fbf2e8",
     justifyContent: "center",
     alignItems: "center",

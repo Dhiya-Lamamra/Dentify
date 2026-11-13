@@ -1,13 +1,35 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { View, ScrollView, Text, TextInput, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { connexion } from "../utils/api";
 
 
 export default function ConnexionCli({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Même logique que Connexions.tsx : la redirection dépend du vrai type du compte
+  const handleConnexion = async () => {
+    if (!email.trim() || !password) {
+      setError("Veuillez remplir le courriel et le mot de passe.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const user = await connexion(email.trim(), password);
+      const accueil = user.type_utilisateur === "clinique" ? "AccueilClinique" : "Accueil";
+      navigation.reset({ index: 0, routes: [{ name: accueil }] });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: "#fbf2e8" }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
 
        <TouchableOpacity style={styles.buttonBack} onPress={() => navigation.navigate("Indexx")}>
           <Text style={styles.buttonTextBack}> Retour à la page principale </Text>
@@ -37,8 +59,10 @@ export default function ConnexionCli({ navigation }) {
         value={password}
       />
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('AccueilClinique')}>
-        <Text style={styles.buttonText}>Se connecter</Text>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <TouchableOpacity style={styles.button} onPress={handleConnexion} disabled={loading}>
+        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Se connecter</Text>}
       </TouchableOpacity>
 
         {/* Si un professionnel ou pas de compte */}
@@ -55,14 +79,14 @@ export default function ConnexionCli({ navigation }) {
           <Text style={styles.linkText}>Créer un compte</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1, // flexGrow (et non flex) : le contenu peut dépasser l'écran et défiler
     backgroundColor: "#fbf2e8", 
     justifyContent: "center",
     alignItems: "center",
@@ -117,6 +141,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#34607d", 
     fontWeight: "bold",
+  },
+  errorText: {
+    color: "red",
+    fontSize: 14,
+    marginBottom: 10,
+    textAlign: "center",
   },
   buttonBack: {
     position: "absolute",

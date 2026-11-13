@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, ScrollView, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { MaterialIcons, FontAwesome, Entypo } from '@expo/vector-icons';
 
 export default function ContactScreen({ navigation }) {
     return (
-        <View style={styles.container}>
+        <ScrollView style={{ flex: 1, backgroundColor: "#fbf2e8" }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             {/* Bouton de retour */}
             <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                 <FontAwesome name="chevron-left" size={24} color="white" />
@@ -57,13 +57,13 @@ export default function ContactScreen({ navigation }) {
                     source={require("../assets/contactez-nous.png")} 
                     style={styles.image}
                   />
-        </View>
+        </ScrollView>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        flexGrow: 1, // flexGrow (et non flex) : le contenu peut dépasser l'écran et défiler
         backgroundColor: '#fbf2e8',
         alignItems: 'center',
     },

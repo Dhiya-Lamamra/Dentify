@@ -2,13 +2,20 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from "react-native";
 import { AntDesign, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { ScrollView } from "react-native-gesture-handler";
+import { deconnecter } from "../utils/api";
 
-export default function AccueilMore({ navigation }) {
-  const [activePage, setActivePage] = useState("Accueil");
+export default function AccueilMoreCli({ navigation }) {
+  const [activePage, setActivePage] = useState("AccueilMoreCli");
 
   const handleNavigation = (page) => {
     setActivePage(page);
     navigation.navigate(page);
+  };
+
+  // Efface le token puis repart de la page d'accueil publique (sans historique pour "retour")
+  const handleDeconnexion = async () => {
+    await deconnecter();
+    navigation.reset({ index: 0, routes: [{ name: "Indexx" }] });
   };
 
   return (
@@ -32,20 +39,23 @@ export default function AccueilMore({ navigation }) {
       {/* Page content  */}
       <ScrollView style={styles.content}>
 
-        <Text style={styles.titleinfo}> À propos de l'application </Text>  
-        <TouchableOpacity style={styles.buttoninfo}> 
-            <Text style={styles.textinfo}> Nos professions </Text>
+        <Text style={styles.titleinfo}> À propos de l'application </Text>
+        <TouchableOpacity style={styles.buttoninfo} onPress={() => navigation.navigate("Fonctionnalite")}>
+            <Text style={styles.textinfo}> Fonctionnalités </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.buttoninfo}> 
+        <TouchableOpacity style={styles.buttoninfo} onPress={() => navigation.navigate("Professions")}>
             <Text style={styles.textinfo}> Nos professions </Text>
         </TouchableOpacity>
 
 
-        <Text style={styles.titleinfo}> À propos de nous </Text>  
-        <TouchableOpacity style={styles.buttoninfo}> 
-            <Text style={styles.textinfo}> Nos professions </Text>
+        <Text style={styles.titleinfo}> À propos de nous </Text>
+        <TouchableOpacity style={styles.buttoninfo} onPress={() => navigation.navigate("AboutUs")}>
+            <Text style={styles.textinfo}> Qui sommes-nous </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.buttoninfo}> 
+        <TouchableOpacity style={styles.buttoninfo} onPress={() => navigation.navigate("Contact")}>
+            <Text style={styles.textinfo}> Nous contacter </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.buttoninfo} onPress={handleDeconnexion}>
             <Text style={styles.textinfo}> Se déconnecter </Text>
         </TouchableOpacity>
 

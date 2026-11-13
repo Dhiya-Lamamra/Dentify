@@ -1,50 +1,49 @@
 
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator } from "react-native";
 import { AntDesign, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import OffreStore from "../utils/OffreStore"; 
+import { getMesOffres, archiverOffre, formaterDate, formaterHeure, Offre } from "../utils/api";
 
-export default function Mesoffres({ navigation, route }) {
+export default function Mesoffres({ navigation }) {
   const [activePage, setActivePage] = useState("Mesoffres");
-  const [offres, setOffres] = useState<{ id: string; titre: string; profession: string; date: string; heureDebut: string; heureFin: string; description: string; exigences: string; remuneration: string; }[]>([]);
+  const [offres, setOffres] = useState<Offre[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  // Charge les offres de MA clinique depuis le backend
+  const chargerOffres = async () => {
+    setError("");
+    try {
+      const toutes = await getMesOffres();
+      // Le backend renvoie aussi les offres archivées : on n'affiche que les actives
+      setOffres(toutes.filter((o) => o.statut !== "archivée"));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // sert à mettre à jour les offres lorsque l'on revient sur la page 
+  // Recharge à chaque fois qu'on revient sur l'écran (ex : après avoir créé une offre)
   useEffect(() => {
-    // pour refresh la liste des offres
-    const refreshOffres = () => {
-      setOffres(OffreStore.getOffres());
-    };
-
-    // donc ça refresh tout de suite
-    refreshOffres();
-
-    // l'écouteur, pour rafraichir à cahque fois qu'on revient sur la page
-    const unsubscribe = navigation.addListener('focus', refreshOffres);
-    
-    
+    const unsubscribe = navigation.addListener('focus', chargerOffres);
     return unsubscribe;
   }, [navigation]);
-
-  // vérifie si nouvelle offre dans les params de route 
-  useEffect(() => {
-    if (route?.params?.newOffre) {
-      // reset pour si nouvelle offre dans storeoffre
-      setOffres(OffreStore.getOffres());
-    }
-  }, [route?.params?.newOffre]);
 
   const handleNavigation = (page) => {
     setActivePage(page);
     navigation.navigate(page);
   };
 
-
-
-
-  const supprimerOffre = (id) => {
-    OffreStore.supprimerOffre(id);
-    setOffres(OffreStore.getOffres());
+  // Pas de route DELETE dans le backend : "supprimer" = archiver (l'offre n'est plus visible
+  // par les professionnels, mais l'historique et les candidatures sont conservés)
+  const supprimerOffre = async (id_offre: number) => {
+    try {
+      await archiverOffre(id_offre);
+      setOffres((prev) => prev.filter((o) => o.id_offre !== id_offre));
+    } catch (e) {
+      setError(e.message);
+    }
   };
 
   return (
@@ -68,27 +67,40 @@ export default function Mesoffres({ navigation, route }) {
       <View style={styles.container2}>
         <Text style={styles.titleoffre}>Mes Offres</Text>
 
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {loading ? (
+          <ActivityIndicator size="large" color="#6a9174" style={{ marginTop: 30 }} />
+        ) : (
         <FlatList
           data={offres}
-          keyExtractor={(item) => item.id || String(Math.random())}
+          keyExtractor={(item) => String(item.id_offre)}
           renderItem={({ item }) => (
             <View style={styles.offreCard}>
               <Text style={styles.offreTitle}>{item.titre}</Text>
-              <Text>Profession : {item.profession}</Text>
-              <Text>Date : {item.date}</Text>
-              <Text>Heure de début : {item.heureDebut}</Text>
-              <Text>Heure de fin : {item.heureFin}</Text>
-              <Text>Description : {item.description}</Text>
-              <Text>Exigences : {item.exigences}</Text>
-              <Text>Salaire : {item.remuneration}</Text>
+              <Text>Profession : {item.type_professionnel}</Text>
+              <Text>Date : {formaterDate(item.date_mission)}</Text>
+              <Text>Heure de début : {formaterHeure(item.heure_debut)}</Text>
+              <Text>Heure de fin : {formaterHeure(item.heure_fin)}</Text>
+              <Text>Description : {item.descript}</Text>
+              {item.competences_requises ? <Text>Exigences : {item.competences_requises}</Text> : null}
+              <Text>Salaire : {item.remuneration} $</Text>
 
-              <TouchableOpacity onPress={() => supprimerOffre(item.id)} style={styles.supprimeroffre}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("CandidatsOffre", { id_offre: item.id_offre, titre: item.titre })}
+                style={styles.candidatsButton}
+              >
+                <Text style={styles.supprimeroffreText}>Voir les candidats</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => supprimerOffre(item.id_offre)} style={styles.supprimeroffre}>
                 <Text style={styles.supprimeroffreText}>Supprimer</Text>
               </TouchableOpacity>
             </View>
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>Aucune offre pour le moment.</Text>}
         />
+        )}
 
         <TouchableOpacity 
           style={styles.addButton} 
@@ -249,10 +261,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold", 
     color: "#34607d",
   },
-  emptyText: { 
-    textAlign: "center", 
-    color: "#777", 
-    marginTop: 20 
+  emptyText: {
+    textAlign: "center",
+    color: "#777",
+    marginTop: 20
+  },
+  errorText: {
+    color: "red",
+    textAlign: "center",
+    marginVertical: 10,
+  },
+  candidatsButton: {
+    backgroundColor: "#34607d",
+    padding: 8,
+    borderRadius: 5,
+    marginTop: 10,
+    alignItems: "center",
   },
   addButton: { 
     flexDirection: "row", 
