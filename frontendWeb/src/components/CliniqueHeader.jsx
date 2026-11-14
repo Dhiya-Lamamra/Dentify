@@ -23,7 +23,7 @@ const CliniqueHeader = () => {
     <header className="clinique-header">
       <div className="clinique-header-container">
         <div className="clinique-logo-container" onClick={goToHome}>
-          <img src="/assets/img/dentify_logo_noir.png" alt="Dentify Logo" className="clinique-logo" />
+          <img src={`${import.meta.env.BASE_URL}assets/img/dentify_logo_noir.png`} alt="Dentify Logo" className="clinique-logo" />
         </div>
         
         <div className="clinique-header-actions">

@@ -7,7 +7,8 @@ import './styles/index.css';
 import App from './App.jsx';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <BrowserRouter>
+  // basename : le site peut être servi dans un sous-dossier (ex : /Dentify/ sur GitHub Pages)
+  <BrowserRouter basename={import.meta.env.BASE_URL}>
     <App />
   </BrowserRouter>
 );

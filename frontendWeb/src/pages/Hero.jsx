@@ -46,7 +46,7 @@ function Hero() {
       {/* Section Personnages + Tache à droite */}
       <div className="right-side">
         <div className="background-splash">
-          <img src="/assets/img/tachepistache.png" alt="Background Shape" />
+          <img src={`${import.meta.env.BASE_URL}assets/img/tachepistache.png`} alt="Background Shape" />
         </div>
         <div className="team-container">
           {teamMembers.map((member, index) => (

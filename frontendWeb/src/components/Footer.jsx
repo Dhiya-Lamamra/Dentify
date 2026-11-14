@@ -6,15 +6,15 @@ const Footer = () => {
             <div className="footer-content">
                 <p>&copy; {new Date().getFullYear()} MonSite. Tous droits réservés.</p>
                 <nav>
-                    <a href="/mentions-legales">Mentions Légales</a>
-                    <a href="/contact">Contact</a>
+                    <a href={`${import.meta.env.BASE_URL}mentions-legales`}>Mentions Légales</a>
+                    <a href={`${import.meta.env.BASE_URL}contact`}>Contact</a>
                 </nav>
                 <div className="footer-links">
                     <a href="https://play.google.com/store" target="_blank" rel="noopener noreferrer">
-                        <img src="/images/google-play-badge.png" alt="Télécharger sur Google Play" />
+                        <img src={`${import.meta.env.BASE_URL}images/google-play-badge.png`} alt="Télécharger sur Google Play" />
                     </a>
                     <a href="https://www.apple.com/app-store/" target="_blank" rel="noopener noreferrer">
-                        <img src="/images/app-store-badge.png" alt="Télécharger sur l'App Store" />
+                        <img src={`${import.meta.env.BASE_URL}images/app-store-badge.png`} alt="Télécharger sur l'App Store" />
                     </a>
                 </div>
                 <p>Contactez-nous : contact@monsite.com</p>

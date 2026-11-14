@@ -11,7 +11,7 @@ function Login() {
   return (
     <div>
       <img
-        src="/assets/img/dentify_logo_noir.png"
+        src={`${import.meta.env.BASE_URL}assets/img/dentify_logo_noir.png`}
         alt="DENTify Logo"
         className="logo_header"
         onClick={handleLogoClick}

@@ -14,7 +14,10 @@ const sequelize = new Sequelize(
     logging: false,
     dialectOptions: process.env.DB_SOCKET
       ? { socketPath: process.env.DB_SOCKET }
-      : {}
+      // Azure Database for MySQL impose une connexion chiffrée : DB_SSL=true en production
+      : process.env.DB_SSL === 'true'
+        ? { ssl: { rejectUnauthorized: true } }
+        : {}
   }
 );
 

@@ -43,7 +43,7 @@ function Header({ openSidebar }) {
     <header>
       <div className="logo">
         <img 
-          src="/assets/img/dentify_logo_noir.png" 
+          src={`${import.meta.env.BASE_URL}assets/img/dentify_logo_noir.png`} 
           alt="DENTify Logo" 
           onClick={handleLogoClick}
           style={{ cursor: 'pointer' }}
