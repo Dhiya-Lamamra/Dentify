@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'frontendWeb/**'
+      - '.github/workflows/azure-static-web-apps-gray-flower-0bc43d11e.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
